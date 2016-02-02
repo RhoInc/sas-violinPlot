@@ -24,7 +24,7 @@
 \------------------------------------------------------------------------------------------------*/
 
                                    %sysexec <repository drive>;
-                                 %sysexec cd "<repository diretory>";
+                               %sysexec cd "<repository diretory>";
                                      ods listing gpath = ".";
 
                                   options compress = char threads
@@ -36,16 +36,16 @@
 \------------------------------------------------------------------------------------------------*/
 
     proc sql;
-          select catx('|', Drivetrain, put(Cylinders, 8.)) as drivetrainCylinders, count(1) as freq
-            into :drivetrainCylinders separated by '" "',
+          select catx('|', DriveTrain, put(Cylinders, 8.)) as DriveTrainCylinders, count(1) as freq
+            into :DriveTrainCylinders separated by '" "',
                  :freqs               separated by  ' '
               from sashelp.cars (where = (1))
-          group by drivetrainCylinders
+          group by DriveTrainCylinders
         having freq gt 4;
     quit;
 
     data cars;
-        set sashelp.cars (where = (catx('|', Drivetrain, put(Cylinders, 8.)) in ("&drivetrainCylinders")));
+        set sashelp.cars (where = (catx('|', DriveTrain, put(Cylinders, 8.)) in ("&DriveTrainCylinders")));
     run;
 
 /*------------------------------------------------------------------------------------------------\
