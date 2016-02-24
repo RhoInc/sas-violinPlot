@@ -1,3 +1,38 @@
+/*----------------------- Copyright 2016, Rho, Inc.  All rights reserved. ------------------------\
+
+  Program:    violinPlot.sas
+
+    Purpose:  Generate violin plots in SAS
+
+    Output:   violinPlot.(pdf png sas)
+
+    /-------------------------------------------------------------------------------------------------\
+      Macro parameters
+    \-------------------------------------------------------------------------------------------------/
+
+        [REQUIRED]
+
+            data:           input dataset
+            outcomeVar:     continuous outcome variable
+
+        [optional]
+
+            groupVar:       categorical grouping variable
+            panelVar:       categorical panelling variable
+            byVar:          categorical BY variable
+            widthMultiplier:width coeffecient
+            trendLineYN:    connect means between group values?
+
+/-------------------------------------------------------------------------------------------------\
+  Program history:
+\-------------------------------------------------------------------------------------------------/
+
+    Date        Programmer          Description
+    ----------  ------------------  --------------------------------------------------------------
+    2016-02-02  Spencer Childress   Create
+
+\------------------------------------------------------------------------------------------------*/
+
 %macro violinPlot
     (data            = 
     ,outcomeVar      = 
@@ -204,8 +239,8 @@
                     border       = no
                     width        = 10.5 in
                     height       =  8   in
-					imagefmt     = pdf
-					outputfmt    = pdf;
+                    imagefmt     = pdf
+                    outputfmt    = pdf;
 
                     proc sgpanel data = fin nocycleattrs noautolegend;
                         format
