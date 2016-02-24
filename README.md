@@ -1,5 +1,5 @@
 # sas-violinPlot
-Generate violin plots with SAS.
+Generate violin plots with SAS.asdf
 
 ![look, a wild violin plot!](https://github.com/RhoInc/sas-violinPlot/blob/master/violinPlot.png)
 
