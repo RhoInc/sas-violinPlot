@@ -4,7 +4,7 @@
 
     Purpose:  Generate violin plots in SAS
 
-    Output:   violinPlot.(pdf png sas)
+    Output:   violinPlot.(pdf png sas)asdf
 
     /-------------------------------------------------------------------------------------------------\
       Macro parameters
