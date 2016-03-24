@@ -1,3 +1,6 @@
+                           %include 'S:\BASESTAT\RhoUtil\gridReset.sas';
+                                %gridReset(H:\SAS\sas-violinPlot);
+;                                                                                                 ;
 /*----------------------- Copyright 2016, Rho, Inc.  All rights reserved. ------------------------\
 
   Study:        sas-violinPlot
@@ -23,42 +26,108 @@
 
 \------------------------------------------------------------------------------------------------*/
 
-                                   %sysexec <repository drive>;
-                               %sysexec cd "<repository diretory>";
-                                     ods listing gpath = ".";
+    /*%sysexec <repository drive>;
+    %sysexec cd "<repository diretory>";*/
+    %sysexec H:;
+    %sysexec cd SAS\sas-violinPlot;
 
-                                  options compress = char threads
-                                          linesize = 104
-                                          pagesize =  79;
+    ods listing
+        gpath = '.';
+
+    options
+        compress = char threads
+        linesize = 104
+        pagesize =  79;
 
 /*------------------------------------------------------------------------------------------------\
-  Data
+  Data manipulation
 \------------------------------------------------------------------------------------------------*/
 
-    proc sql;
-          select catx('|', DriveTrain, put(Cylinders, 8.)) as DriveTrainCylinders, count(1) as freq
-            into :DriveTrainCylinders separated by '" "',
-                 :freqs               separated by  ' '
-              from sashelp.cars (where = (1))
-          group by DriveTrainCylinders
-        having freq gt 4;
-    quit;
-
-    data cars;
-        set sashelp.cars (where = (catx('|', DriveTrain, put(Cylinders, 8.)) in ("&DriveTrainCylinders")));
+    proc sort
+        data = sashelp.cars (where = (cylinders in (4 6 8)))
+        out = cars;
+        by Cylinders Origin Horsepower;
     run;
 
 /*------------------------------------------------------------------------------------------------\
-  Figure
+  Figures
 \------------------------------------------------------------------------------------------------*/
+
+    /*--------------------------------------------------------------------------------------------\
+      Box-and-Whisker plot
+    \--------------------------------------------------------------------------------------------*/
+
+        proc sql noprint;
+            select
+                ceil(max(Horsepower))
+              into :max trimmed
+                from cars;
+        quit;
+
+        title;
+        footnote;
+
+        options
+            orientation = landscape;
+
+        ods results off;
+
+            ods graphics on /
+                reset = all
+                border = no
+                width = 10.5in
+                height = 8in
+                imagename = 'boxAndWhiskerPlot'
+                imagefmt = pdf
+                outputfmt = pdf;
+
+            ods pdf
+                file = 'boxAndWhiskerPlot.pdf';
+                title1 j = c 'Horsepower';
+                title2 j = c 'Paneled by Cylinders';
+                %macro boxAndWhisker;
+                    proc sgpanel
+                        data = cars;
+                        panelby Cylinders / novarname
+                            rows = 1;
+                        vbox Horsepower /
+                            group = Origin;
+                        rowaxis values = (0 to &max);
+                    run;
+                %mend  boxAndWhisker;
+                %boxAndWhisker
+            ods pdf close;
+
+            ods graphics on /
+                reset = all
+                border = no
+                width = 10.5in
+                height = 8in
+                imagename = 'boxAndWhiskerPlot'
+                imagefmt = png
+                outputfmt = png;
+
+                %boxAndWhisker
+
+        ods results;
+
+    /*--------------------------------------------------------------------------------------------\
+      Violin plot
+    \--------------------------------------------------------------------------------------------*/
 
         %include 'violinPlot.sas';
         %violinPlot
             (data            = cars
             ,outcomeVar      = Horsepower
-            ,groupVar        = DriveTrain
+            ,groupVar        = Origin
             ,panelVar        = Cylinders
             ,byVar           = 
             ,widthMultiplier = .1
             ,trendLineYN     = Yes
             );
+
+/*------------------------------------------------------------------------------------------------\
+  Cleanup
+\------------------------------------------------------------------------------------------------*/
+
+    %sysexec del SGPanel.*;

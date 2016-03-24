@@ -4,7 +4,7 @@
 
     Purpose:  Generate violin plots in SAS
 
-    Output:   violinPlot.(pdf png sas)asdf
+    Output:   violinPlot.(pdf png sas)
 
     /-------------------------------------------------------------------------------------------------\
       Macro parameters
@@ -34,11 +34,11 @@
 \------------------------------------------------------------------------------------------------*/
 
 %macro violinPlot
-    (data            = 
-    ,outcomeVar      = 
-    ,groupVar        = 
-    ,panelVar        = 
-    ,byVar           = 
+    (data            =
+    ,outcomeVar      =
+    ,groupVar        =
+    ,panelVar        =
+    ,byVar           =
     ,widthMultiplier = 1
     ,trendLineYN     = Yes
     ) / minoperator;
@@ -109,13 +109,15 @@
         /* Kernel density estimation                                                                 */
         /*-------------------------------------------------------------------------------------------*/
 
-            proc sort data = inputData;
-                by &byVar &panelVar &groupVar;
-            proc kde data = inputData;
-                by     &byVar &panelVar &groupVar groupVar;
-                univar outcomeVar / noprint
-                    out = KDE;
-            run;
+            ods graphics off;
+                proc sort data = inputData;
+                    by &byVar &panelVar &groupVar;
+                proc kde data = inputData;
+                    by     &byVar &panelVar &groupVar groupVar;
+                    univar outcomeVar / noprint
+                        out = KDE;
+                run;
+            ods graphics;
 
         /*-------------------------------------------------------------------------------------------*/
         /* Descriptive statistics                                                                    */
@@ -213,43 +215,45 @@
            define style styles.violin;
                 parent = styles.printer;
                     %do i = 1 %to &nGroupVarValues;
-                        style GraphData%eval(&i*4 - 3) / color = cxc6dbef;
+                        style GraphData%eval(&i*4 - 3) / color = cxdeebf7;
                         style GraphData%eval(&i*4 - 2) / color = cx9ecae1;
-                        style GraphData%eval(&i*4 - 1) / color = cx6baed6;
-                        style GraphData%eval(&i*4    ) / color = cx3182bd;
+                        style GraphData%eval(&i*4 - 1) / color = cx4292c6;
+                        style GraphData%eval(&i*4    ) / color = cx08519c;
                     %end;
            end;
         run;
 
-        options orientation = landscape nodate;
+        title;
+        footnote;
 
-        title1 j = c "&outcomeVarLabel";
-        title2 j = c "Paneled by &panelVarLabel";
-
-        ods listing
-            gpath = "%sysfunc(pathname(work))"
-            style = styles.violin;
+        options nodate
+            orientation = landscape;
 
         ods results off;
-            ods pdf
-                file  = "violinPlot.pdf"
-                style = styles.violin;
-                ods graphics on /
-                    reset        = all
-                    border       = no
-                    width        = 10.5 in
-                    height       =  8   in
-                    imagefmt     = pdf
-                    outputfmt    = pdf;
 
-                    proc sgpanel data = fin nocycleattrs noautolegend;
+            ods graphics /
+                reset = all
+                border = no
+                width = 10.5in
+                height = 8in
+                imagename = 'violinPlot'
+                imagefmt = pdf
+                outputfmt = pdf;
+
+            ods pdf
+                file  = 'violinPlot.pdf'
+                style = styles.violin;
+                title1 j = c "&outcomeVarLabel";
+                title2 j = c "Paneled by &panelVarLabel";
+
+                %macro violin;
+                    proc sgpanel nocycleattrs noautolegend
+                        data = fin;
                         format
                             lowerBand upperBand groupVar_div_2 jitter groupVar.;
                         panelby
-                            &panelVar /
-                                novarname
-                                rows    = 1
-                                columns = 3;
+                            &panelVar / novarname
+                                rows = 1;
                         band
                             y = yBand
                             lower = lowerBand
@@ -258,6 +262,13 @@
                                 group = quartile
                                 lineattrs = (
                                     pattern = solid
+                                    color = black);
+                        scatter
+                            x = jitter
+                            y = &outcomeVar /
+                                markerattrs = (
+                                    symbol = circle
+                                    size = 8px
                                     color = black);
                         scatter
                             x = groupVar_div_2
@@ -294,13 +305,6 @@
                                     symbol = circleFilled
                                     size = 12px
                                     color = red);
-                        scatter
-                            x = jitter
-                            y = &outcomeVar /
-                                markerattrs = (
-                                    symbol = circle
-                                    size = 8px
-                                    color = black);
                         rowaxis
                             label  = "&outcomeVarLabel"
                             values = (0 to &max);
@@ -309,9 +313,23 @@
                             display = (noticks)
                             values  = (0 to %sysevalf(%scan(&nGroupVarValues, -1)/2 + .5) by .5);
                     run;
-
-                ods graphics off;
+                %mend  violin;
+                %violin
             ods pdf close;
+
+            ods graphics on /
+                reset = all
+                border = no
+                width = 10.5in
+                height = 8in
+                imagename = 'violinPlot'
+                imagefmt = png
+                outputfmt = png
+                antialiasmax = 10000;
+                ods listing
+                    style = styles.violin;
+                    %violin
+
         ods results;
 
     %exit:
