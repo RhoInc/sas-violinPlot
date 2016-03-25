@@ -6,22 +6,25 @@
 
     Output:   violinPlot.(pdf png sas)
 
-    /-------------------------------------------------------------------------------------------------\
+    /---------------------------------------------------------------------------------------------\
       Macro parameters
-    \-------------------------------------------------------------------------------------------------/
+    \---------------------------------------------------------------------------------------------/
 
-        [REQUIRED]
+            Parameter               Purpose
+            --------------------    --------------------------------------------------------------
+            data                    [REQUIRED]  input dataset
+            outcomeVar              [REQUIRED]  continuous outcome variable
 
-            data:           input dataset
-            outcomeVar:     continuous outcome variable
-
-        [optional]
-
-            groupVar:       categorical grouping variable
-            panelVar:       categorical panelling variable
-            byVar:          categorical BY variable
-            widthMultiplier:width coeffecient
-            trendLineYN:    connect means between group values?
+            groupVar                [optional]  categorical grouping variable
+            panelVar                [optional]  categorical paneling variable
+            byVar                   [optional]  categorical BY variable
+            widthMultiplier         [optional]  kernel density width coefficient
+            jitterYN                [optional]  display jittered data points?
+            quartileYN              [optional]  display color-coded quartiles?
+            quartileSymbolsYN       [optional]  display quartiles as symbols?
+            meanYN                  [optional]  display means?
+            trendLineYN             [optional]  display a trend line?
+            trendStatistic          [optional]  trend line statistic
 
 /-------------------------------------------------------------------------------------------------\
   Program history:
@@ -34,13 +37,18 @@
 \------------------------------------------------------------------------------------------------*/
 
 %macro violinPlot
-    (data            =
-    ,outcomeVar      =
-    ,groupVar        =
-    ,panelVar        =
-    ,byVar           =
-    ,widthMultiplier = 1
-    ,trendLineYN     = Yes
+    (data              =
+    ,outcomeVar        =
+    ,groupVar          =
+    ,panelVar          =
+    ,byVar             =
+    ,widthMultiplier   = 1
+    ,jitterYN          = Yes
+    ,quartileYN        = Yes
+    ,quartileSymbolsYN = No
+    ,meanYN            = Yes
+    ,trendLineYN       = Yes
+    ,trendStatistic    = Median
     ) / minoperator;
 
     %if &data            = %then %goto exit;
@@ -198,6 +206,14 @@
                     inputDataStatistics (in = c);
 
                 groupVar_div_2 = groupVar/2;
+                if quartile gt .z and "&quartileYN" ne 'Yes' then quartile = ceil(quartile/100)*100;
+
+                label
+                    quartile1 = 'First Quartile'
+                    median = 'Median'
+                    quartile3 = 'Third Quartile'
+                    mean = 'Mean'
+                ;
             run;
 
             proc sql noprint;
@@ -234,8 +250,8 @@
             ods graphics /
                 reset = all
                 border = no
-                width = 10.5in
-                height = 8in
+                width = 10in
+                height = 7.5in
                 imagename = 'violinPlot'
                 imagefmt = pdf
                 outputfmt = pdf;
@@ -257,61 +273,86 @@
                         band
                             y = yBand
                             lower = lowerBand
-                            upper = upperBand /
-                                fill outline
+                            upper = upperBand / fill outline
                                 group = quartile
                                 lineattrs = (
                                     pattern = solid
                                     color = black);
-                        scatter
-                            x = jitter
-                            y = &outcomeVar /
-                                markerattrs = (
-                                    symbol = circle
-                                    size = 8px
-                                    color = black);
-                        scatter
-                            x = groupVar_div_2
-                            y = quartile1 /
-                                markerattrs = (
-                                    symbol = circleFilled
-                                    size = 8px
-                                    color = white);
-                        scatter
-                            x = groupVar_div_2
-                            y = median /
-                                markerattrs = (
-                                    symbol = circleFilled
-                                    size = 12px
-                                    color = white);
-                        scatter
-                            x = groupVar_div_2
-                            y = quartile3 /
-                                markerattrs = (
-                                    symbol = circleFilled
-                                    size = 8px
-                                    color = white);
-                        %if &trendLineYN = Yes %then
-                        series
-                            x = groupVar_div_2
-                            y = mean /
-                                lineattrs = (
-                                    color = red
-                                    thickness = 2px);;
-                        scatter
-                            x = groupVar_div_2
-                            y = mean /
-                                markerattrs = (
-                                    symbol = circleFilled
-                                    size = 12px
-                                    color = red);
-                        rowaxis
+
+                        %if &jitterYN = Yes %then %do;
+                            scatter
+                                x = jitter
+                                y = &outcomeVar /
+                                    markerattrs = (
+                                        symbol = circle
+                                        size = 6px
+                                        color = black);
+                        %end;
+
+                        %if &quartileSymbolsYN = Yes %then %do;
+                            scatter
+                                x = groupVar_div_2
+                                y = quartile1 /
+                                    name = 'quartile1'
+                                    markerattrs = (
+                                        symbol = diamondFilled
+                                        size = 6px
+                                        color = black);
+                            scatter
+                                x = groupVar_div_2
+                                y = median /
+                                    name = 'median'
+                                    markerattrs = (
+                                        symbol = diamondFilled
+                                        size = 9px
+                                        color = black);
+                            scatter
+                                x = groupVar_div_2
+                                y = quartile3 /
+                                    name = 'quartile3'
+                                    markerattrs = (
+                                        symbol = diamondFilled
+                                        size = 6px
+                                        color = black);
+                        %end;
+
+                        %if &meanYN = Yes %then %do;
+                            scatter
+                                x = groupVar_div_2
+                                y = mean /
+                                    name = 'mean'
+                                    markerattrs = (
+                                        symbol = diamondFilled
+                                        size = 9px
+                                        color = yellow);
+                        %end;
+
+                        %if &trendLineYN = Yes %then %do;
+                            series
+                                x = groupVar_div_2
+                                y = &trendStatistic /
+                                    lineattrs = (
+                                        color = red
+                                        thickness = 2px);
+                            scatter
+                                x = groupVar_div_2
+                                y = &trendStatistic /
+                                    name = 'trend'
+                                    markerattrs = (
+                                        symbol = circleFilled
+                                        size = 9px
+                                        color = red);
+                        %end;
+
+                        rowaxis grid
                             label  = "&outcomeVarLabel"
                             values = (0 to &max);
-                        colaxis
+                        colaxis grid
                             label   = "&groupVarLabel"
                             display = (noticks)
                             values  = (0 to %sysevalf(%scan(&nGroupVarValues, -1)/2 + .5) by .5);
+                        *keylegend 'mean' 'trend' /
+                            position = right;
                     run;
                 %mend  violin;
                 %violin

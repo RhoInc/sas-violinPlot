@@ -1,6 +1,3 @@
-                           %include 'S:\BASESTAT\RhoUtil\gridReset.sas';
-                                %gridReset(H:\SAS\sas-violinPlot);
-;                                                                                                 ;
 /*----------------------- Copyright 2016, Rho, Inc.  All rights reserved. ------------------------\
 
   Study:        sas-violinPlot
@@ -12,9 +9,10 @@
       Input:    SASHELP.CARS
                 <repository directory>\violinPlot.sas
 
-        Macros: %violinPlot
+      Output:   <repository directory>\boxAndWhiskerPlot.(pdf png)
+                <repository directory>\violinPlot.(pdf png)
 
-      Output:   <repository directory>\violinPlot.pdf
+      Macros:   %violinPlot
 
   /-----------------------------------------------------------------------------------------------\
     Program History:
@@ -26,18 +24,14 @@
 
 \------------------------------------------------------------------------------------------------*/
 
-    /*%sysexec <repository drive>;
-    %sysexec cd "<repository diretory>";*/
-    %sysexec H:;
-    %sysexec cd SAS\sas-violinPlot;
+    %sysexec <repository drive>;
+    %sysexec cd "<repository diretory>";
 
     ods listing
         gpath = '.';
 
-    options
-        compress = char threads
-        linesize = 104
-        pagesize =  79;
+    options threads
+        compress = char;
 
 /*------------------------------------------------------------------------------------------------\
   Data manipulation
@@ -75,8 +69,8 @@
             ods graphics on /
                 reset = all
                 border = no
-                width = 10.5in
-                height = 8in
+                width = 10in
+                height = 7.5in
                 imagename = 'boxAndWhiskerPlot'
                 imagefmt = pdf
                 outputfmt = pdf;
@@ -101,8 +95,8 @@
             ods graphics on /
                 reset = all
                 border = no
-                width = 10.5in
-                height = 8in
+                width = 10in
+                height = 7.5in
                 imagename = 'boxAndWhiskerPlot'
                 imagefmt = png
                 outputfmt = png;
@@ -117,13 +111,18 @@
 
         %include 'violinPlot.sas';
         %violinPlot
-            (data            = cars
-            ,outcomeVar      = Horsepower
-            ,groupVar        = Origin
-            ,panelVar        = Cylinders
-            ,byVar           = 
-            ,widthMultiplier = .1
-            ,trendLineYN     = Yes
+            (data              = cars
+            ,outcomeVar        = Horsepower
+            ,groupVar          = Cylinders
+            ,panelVar          = Origin
+            ,byVar             = 
+            ,widthMultiplier   = .1
+            ,jitterYN          = Yes
+            ,quartileYN        = Yes
+            ,quartileSymbolsYN = No
+            ,meanYN            = Yes
+            ,trendLineYN       = Yes
+            ,trendStatistic    = Median
             );
 
 /*------------------------------------------------------------------------------------------------\
