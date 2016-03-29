@@ -24,10 +24,9 @@
 
 \------------------------------------------------------------------------------------------------*/
 
+   *Set the working drive and directory below before running program.;
     %sysexec <repository drive>;
     %sysexec cd "<repository directory>";
-    %sysexec H:;
-    %sysexec cd "SAS\sas-violinPlot";
 
     ods listing
         gpath = '.';
