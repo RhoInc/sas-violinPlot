@@ -25,13 +25,17 @@
 \------------------------------------------------------------------------------------------------*/
 
     %sysexec <repository drive>;
-    %sysexec cd "<repository diretory>";
+    %sysexec cd "<repository directory>";
+    %sysexec H:;
+    %sysexec cd "SAS\sas-violinPlot";
 
     ods listing
         gpath = '.';
 
     options threads
         compress = char;
+
+    %include 'src\violinPlot.sas';
 
 /*------------------------------------------------------------------------------------------------\
   Data manipulation
@@ -76,7 +80,7 @@
                 outputfmt = pdf;
 
             ods pdf
-                file = 'boxAndWhiskerPlot.pdf';
+                file = 'output\boxAndWhiskerPlot.pdf';
                 title1 j = c 'Horsepower';
                 title2 j = c 'Paneled by Cylinders';
                 %macro boxAndWhisker;
@@ -100,6 +104,8 @@
                 imagename = 'boxAndWhiskerPlot'
                 imagefmt = png
                 outputfmt = png;
+            ods listing
+                gpath = 'output';
 
                 %boxAndWhisker
 
@@ -109,24 +115,37 @@
       Violin plot
     \--------------------------------------------------------------------------------------------*/
 
-        %include 'violinPlot.sas';
         %violinPlot
             (data              = cars
             ,outcomeVar        = Horsepower
+            ,outPath           = output
+            ,outName           = violinPlot
+            ,widthMultiplier   = .1
+            );
+
+        %violinPlot
+            (data              = cars
+            ,outcomeVar        = Horsepower
+            ,outPath           = output
+            ,outName           = violinPlotGrouped
+            ,groupVar          = Cylinders
+            ,widthMultiplier   = .1
+            );
+
+        %violinPlot
+            (data              = cars
+            ,outcomeVar        = Horsepower
+            ,outPath           = output
+            ,outName           = violinPlotPaneledAndGrouped
             ,groupVar          = Cylinders
             ,panelVar          = Origin
-            ,byVar             = 
             ,widthMultiplier   = .1
-            ,jitterYN          = Yes
-            ,quartileYN        = Yes
-            ,quartileSymbolsYN = No
-            ,meanYN            = Yes
-            ,trendLineYN       = Yes
-            ,trendStatistic    = Median
             );
 
 /*------------------------------------------------------------------------------------------------\
   Cleanup
 \------------------------------------------------------------------------------------------------*/
 
+    %sysexec del SGPlot.*;
     %sysexec del SGPanel.*;
+    %sysexec del violinPlotImage.pdf;
