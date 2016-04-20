@@ -23,13 +23,25 @@
       2016-02-02  Spencer Childress   Create
 
 \------------------------------------------------------------------------------------------------*/
+    proc means noprint nway
+        data = exampleData;
+        var    outcome;
+        output
+            out    = statistics
+            mean   = mean
+            p25    = quartile1
+            median = median
+            p75    = quartile3;
+    run;
 
    *Set the working drive and directory below before running program.;
-    %sysexec <repository drive>;
-    %sysexec cd "<repository directory>";
+    %*sysexec <repository drive>;
+    %*sysexec cd "<repository directory>";
+    %sysexec H:;
+    %sysexec cd "H:\SAS\sas-violinPlot";
 
     ods listing
-        gpath = '.';
+        gpath = 'output';
 
     options threads
         compress = char;
@@ -46,6 +58,13 @@
         by Cylinders Origin Horsepower;
     run;
 
+    data test;
+        do i = 1 to 100;
+                Outcome = ranuni(-1)*ifn(i le 5, 3, 1);
+            output;
+        end;
+    run;
+
 /*------------------------------------------------------------------------------------------------\
   Figures
 \------------------------------------------------------------------------------------------------*/
@@ -53,6 +72,21 @@
     /*--------------------------------------------------------------------------------------------\
       Box-and-Whisker plot
     \--------------------------------------------------------------------------------------------*/
+
+        ods graphics /
+            reset = all
+            border = no
+            width = 10.5in
+            height = 8in
+            imagename = "boxAndWhiskerPlotExample"
+            imagefmt = png
+            outputfmt = png
+            antialiasmax = 10000;
+
+        proc sgplot
+            data = test;
+            vbox outcome;
+        run;
 
         proc sql noprint;
             select
@@ -115,6 +149,28 @@
     \--------------------------------------------------------------------------------------------*/
 
         %violinPlot
+            (data              = test
+            ,outcomeVar        = Outcome
+            ,outPath           = output
+            ,outName           = violinPlotExample
+            ,widthMultiplier   = 5
+            );
+
+        %violinPlot
+            (data              = cars
+            ,outcomeVar        = Horsepower
+            ,outPath           = output
+            ,outName           = violinPlot
+            ,widthMultiplier   = .1
+            ,jitterYN          = Yes
+            ,quartileYN        = Yes
+            ,quartileSymbolsYN = No
+            ,meanYN            = Yes
+            ,trendLineYN       = No
+            ,trendStatistic    = Median
+            );
+
+        %violinPlot
             (data              = cars
             ,outcomeVar        = Horsepower
             ,outPath           = output
@@ -129,7 +185,67 @@
             ,outName           = violinPlotGrouped
             ,groupVar          = Cylinders
             ,widthMultiplier   = .1
+            ,trendLineYN       = Yes
+            ,trendStatistic    = Mean
             );
+
+    proc sql;
+        create table kdeStack as
+            select groupVar, value, density, min(value) as minValue, max(value) as maxValue
+                from kde (where = (groupVar = 1))
+          outer union corr
+            select groupVar, value, density, min(value) as minValue, max(value) as maxValue
+                from kde (where = (groupVar = 2))
+          outer union corr
+            select groupVar, value, density, min(value) as minValue, max(value) as maxValue
+                from kde (where = (groupVar = 3))
+        order by value;
+
+        select min(value), max(value)
+          into :minValue, :maxValue
+            from kde;
+    quit;
+
+    data test;
+        set kdeStack;
+        by value;
+
+        retain density1-density3;
+        select (groupVar);
+                when (1) density1 = density;
+                when (2) density2 = density;
+                when (3) density3 = density;
+            otherwise;
+        end;
+
+        if value = minValue or value = maxValue then call missing(density1, density2, density3);
+
+        if groupVar = 1 then do;
+            lower = 0;
+            upper = density;
+        end;
+        else if groupVar = 2 then do;
+            lower = max(0, density1);
+            upper = density + lower;
+        end;
+        else if groupVar = 3 then do;
+            lower = max(0, density1) + max(0, density2);
+            upper = density + lower;
+        end;
+    run;
+
+        proc sgplot nocycleattrs noautolegend
+            data = test;
+
+            band
+                x = value
+                lower = lower
+                upper = upper / fill outline
+                    group = groupVar
+                    lineattrs = (
+                        pattern = solid
+                        color = black);
+        run;
 
         %violinPlot
             (data              = cars
@@ -148,3 +264,7 @@
     %sysexec del SGPlot.*;
     %sysexec del SGPanel.*;
     %sysexec del violinPlotImage.pdf;
+
+/*------------------------------------------------------------------------------------------------\
+  Stream graph
+\------------------------------------------------------------------------------------------------*/

@@ -138,10 +138,12 @@
         \----------------------------------------------------------------------------------------*/
 
             ods graphics off;
-                proc sort data = inputData;
+                proc sort
+                    data = inputData;
                     by &byVar &panelVar &groupVar &outcomeVar;
-                proc kde data = inputData;
-                    by     &byVar &panelVar &groupVar groupVar;
+                proc kde
+                    data = inputData;
+                    by &byVar &panelVar &groupVar groupVar;
                     univar outcomeVar / noprint
                         out = KDE;
                 run;
