@@ -18,6 +18,8 @@
             groupVar                [optional]  categorical grouping variable
             panelVar                [optional]  categorical paneling variable
             byVar                   [optional]  categorical BY variable
+            outPath                 [optional]  output directory
+            outName                 [optional]  output name
             widthMultiplier         [optional]  kernel density width coefficient
             jitterYN                [optional]  display jittered data points?
             quartileYN              [optional]  display color-coded quartiles?
@@ -37,13 +39,13 @@
 \------------------------------------------------------------------------------------------------*/
 
 %macro violinPlot
-    (data              =
+    (data              = 
+    ,outcomeVar        = 
+    ,groupVar          = 
+    ,panelVar          = 
+    ,byVar             = 
     ,outPath           = .
     ,outName           = violinPlot
-    ,outcomeVar        =
-    ,groupVar          =
-    ,panelVar          =
-    ,byVar             =
     ,widthMultiplier   = 1
     ,jitterYN          = Yes
     ,quartileYN        = Yes
@@ -248,8 +250,10 @@
 
             proc sql noprint;
                 select
-                    ceil(max(&outcomeVar))
-                  into :max trimmed
+                        floor(min(min(0, &outcomeVar))),
+                         ceil(max(       &outcomeVar ))
+                  into :min trimmed,
+                       :max trimmed
                     from inputData;
             quit;
 
@@ -257,16 +261,38 @@
       Figure generation
     \--------------------------------------------------------------------------------------------*/
 
-        proc template;
-           define style styles.violin;
-                parent = styles.printer;
-                    %do i = 1 %to &nGroupVarValues;
-                        style GraphData%eval(&i*4 - 3) / color = cxdeebf7;
-                        style GraphData%eval(&i*4 - 2) / color = cx9ecae1;
-                        style GraphData%eval(&i*4 - 1) / color = cx4292c6;
-                        style GraphData%eval(&i*4    ) / color = cx08519c;
-                    %end;
-           end;
+        proc sql;
+            create table quartileColors as
+                select distinct %if &panelVar ne %then &panelVar,; groupVar, quartile, (quartile - 100*groupVar)/25 as colorIndex
+                    from inputDataStatistics;
+        quit;
+
+        %let colors = cxdeebf7 cx9ecae1 cx4292c6 cx08519c;
+
+        data _null_;
+            length styleStatement $1000;
+            set quartileColors
+                end = eof;
+            by &panelVar groupVar;
+
+            styleStatement = 'style graphData'
+                || strip(put(_n_, 8.))
+                || ' / color = '
+                || scan("&colors", colorIndex)
+                || ';';
+
+            if _n_ = 1 then do;
+                call execute('proc template;');
+                    call execute('define style styles.violin;');
+                        call execute('parent = styles.printer;');
+            end;
+
+                            call execute(styleStatement);
+
+            if eof then do;
+                    call execute('end;');
+                call execute('run;');
+            end;
         run;
 
         title;
@@ -277,6 +303,9 @@
 
         ods results off;
 
+            ods listing
+                gpath = "%sysfunc(pathname(temp))"
+                style = styles.violin;
             ods graphics /
                 reset = all
                 border = no
@@ -377,7 +406,7 @@
 
                             rowaxis grid
                                 label  = "&outcomeVarLabel"
-                                values = (0 to &max);
+                                values = (&min to &max);
                             colaxis grid
                                 label   = "&groupVarLabel"
                                 display = (noticks)
@@ -467,7 +496,7 @@
 
                             yaxis grid
                                 label  = "&outcomeVarLabel"
-                                values = (0 to &max);
+                                values = (&min to &max);
                             xaxis grid
                                 %if &groupVar ne dummyVariable %then %do;
                                     label   = "&groupVarLabel"
