@@ -23,22 +23,13 @@
       2016-02-02  Spencer Childress   Create
 
 \------------------------------------------------------------------------------------------------*/
-    proc means noprint nway
-        data = exampleData;
-        var    outcome;
-        output
-            out    = statistics
-            mean   = mean
-            p25    = quartile1
-            median = median
-            p75    = quartile3;
-    run;
+
 
    *Set the working drive and directory below before running program.;
-    %*sysexec <repository drive>;
-    %*sysexec cd "<repository directory>";
-    %sysexec H:;
-    %sysexec cd "H:\SAS\sas-violinPlot";
+    %sysexec <repository drive>;
+    %sysexec cd "<repository directory>";
+    %*sysexec H:;
+    %*sysexec cd "H:\SAS\sas-violinPlot";
 
     ods listing
         gpath = 'output';
@@ -126,7 +117,7 @@
                         rowaxis values = (0 to &max);
                     run;
                 %mend  boxAndWhisker;
-                %boxAndWhisker
+                %*boxAndWhisker
             ods pdf close;
 
             ods graphics on /
@@ -140,7 +131,7 @@
             ods listing
                 gpath = 'output';
 
-                %boxAndWhisker
+                %*boxAndWhisker
 
         ods results;
 
@@ -148,7 +139,7 @@
       Violin plot
     \--------------------------------------------------------------------------------------------*/
 
-        %violinPlot
+        %*violinPlot
             (data              = test
             ,outcomeVar        = Outcome
             ,outPath           = output
@@ -156,7 +147,7 @@
             ,widthMultiplier   = 5
             );
 
-        %violinPlot
+        %*violinPlot
             (data              = cars
             ,outcomeVar        = Horsepower
             ,outPath           = output
@@ -170,7 +161,7 @@
             ,trendStatistic    = Median
             );
 
-        %violinPlot
+        %*violinPlot
             (data              = cars
             ,outcomeVar        = Horsepower
             ,outPath           = output
@@ -189,16 +180,42 @@
             ,trendStatistic    = Mean
             );
 
+        data forStreamGraph;
+            set kde;
+        run;
+
+        %*violinPlot
+            (data              = cars
+            ,outcomeVar        = Horsepower
+            ,outPath           = output
+            ,outName           = violinPlotPaneledAndGrouped
+            ,groupVar          = Cylinders
+            ,panelVar          = Origin
+            ,widthMultiplier   = .1
+            );
+
+/*------------------------------------------------------------------------------------------------\
+  Cleanup
+\------------------------------------------------------------------------------------------------*/
+
+    %sysexec del SGPlot.*;
+    %sysexec del SGPanel.*;
+    %sysexec del violinPlotImage.pdf;
+
+/*------------------------------------------------------------------------------------------------\
+  Stream graph
+\------------------------------------------------------------------------------------------------*/
+
     proc sql;
         create table kdeStack as
             select groupVar, value, density, min(value) as minValue, max(value) as maxValue
-                from kde (where = (groupVar = 1))
+                from forStreamGraph (where = (groupVar = 1))
           outer union corr
             select groupVar, value, density, min(value) as minValue, max(value) as maxValue
-                from kde (where = (groupVar = 2))
+                from forStreamGraph (where = (groupVar = 2))
           outer union corr
             select groupVar, value, density, min(value) as minValue, max(value) as maxValue
-                from kde (where = (groupVar = 3))
+                from forStreamGraph (where = (groupVar = 3))
         order by value;
 
         select min(value), max(value)
@@ -206,7 +223,7 @@
             from kde;
     quit;
 
-    data test;
+    data streamGraph;
         set kdeStack;
         by value;
 
@@ -234,8 +251,11 @@
         end;
     run;
 
+    ods graphics /
+        imagename = 'streamGraph';
+
         proc sgplot nocycleattrs noautolegend
-            data = test;
+            data = streamGraph;
 
             band
                 x = value
@@ -247,24 +267,8 @@
                         color = black);
         run;
 
-        %violinPlot
-            (data              = cars
-            ,outcomeVar        = Horsepower
-            ,outPath           = output
-            ,outName           = violinPlotPaneledAndGrouped
-            ,groupVar          = Cylinders
-            ,panelVar          = Origin
-            ,widthMultiplier   = .1
-            );
-
 /*------------------------------------------------------------------------------------------------\
-  Cleanup
+  Side-by-side density curves
 \------------------------------------------------------------------------------------------------*/
 
-    %sysexec del SGPlot.*;
-    %sysexec del SGPanel.*;
-    %sysexec del violinPlotImage.pdf;
-
-/*------------------------------------------------------------------------------------------------\
-  Stream graph
-\------------------------------------------------------------------------------------------------*/
+    /*to be continued*/

@@ -90,7 +90,7 @@
 
             if first.&groupVar then do;
                 groupVar   + 1;
-                groupVarValues = catx('|', groupVarValues, &groupVar);
+                groupVarValues = catx('|', groupVarValues, ifc(vtype(&groupVar) = 'C', quote(&groupVar), &groupvar));
             end;
 
             if eof then do;
@@ -248,13 +248,25 @@
                 ;
             run;
 
-            proc sql noprint;
-                select
-                        floor(min(min(0, &outcomeVar))),
-                         ceil(max(       &outcomeVar ))
-                  into :min trimmed,
-                       :max trimmed
-                    from inputData;
+            proc sql;
+                %if &panelVar ne %then %do;
+                    select count(distinct &panelVar)
+                      into :nPanelVarValues trimmed
+                        from inputData;
+
+                    %if &nPanelVarValues le 4 %then %do;
+                        %let rows = 1;
+                        %let columns = &nPanelVarValues;
+                    %end;
+                    %else %if &nPanelVarValues le 8 %then %do;
+                        %let rows = 2;
+                        %let columns = 4;
+                    %end;
+                    %else %do;
+                        %let rows = 1;
+                        %let cols = 4;
+                    %end;
+                %end;
             quit;
 
     /*--------------------------------------------------------------------------------------------\
@@ -329,7 +341,8 @@
                                 lowerBand upperBand groupVar_div_2 jitter groupVar.;
                             panelby
                                 &panelVar / novarname
-                                    rows = 1;
+                                    rows = &rows
+                                    columns = &columns;
                             band
                                 y = yBand
                                 lower = lowerBand
@@ -406,10 +419,11 @@
 
                             rowaxis grid
                                 label  = "&outcomeVarLabel"
-                                values = (&min to &max);
+                                /*values = (&min to &max)*/;
                             colaxis grid
                                 label   = "&groupVarLabel"
                                 display = (noticks)
+                                fitpolicy = rotate
                                 values  = (0 to %sysevalf(%scan(&nGroupVarValues, -1)/2 + .5) by .5);
                             *keylegend 'mean' 'trend' /
                                 position = right;
@@ -496,7 +510,7 @@
 
                             yaxis grid
                                 label  = "&outcomeVarLabel"
-                                values = (&min to &max);
+                                /*values = (&min to &max)*/;
                             xaxis grid
                                 %if &groupVar ne dummyVariable %then %do;
                                     label   = "&groupVarLabel"
