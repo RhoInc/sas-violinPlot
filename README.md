@@ -1,5 +1,5 @@
 # sas-violinPlot
-Generate violin plots with SAS.
+The sas-violinPlot library allows users to generate violin plots with SAS.  Check out the [wiki](https://github.com/RhoInc/sas-violinPlot/wiki) for more details.
 
 ![look, a wild violin plot!](https://github.com/RhoInc/sas-violinPlot/blob/master/output/violinPlotPaneledAndGrouped.png)
 
