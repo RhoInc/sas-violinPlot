@@ -1,63 +1,176 @@
 /*----------------------- Copyright 2016, Rho, Inc.  All rights reserved. ------------------------\
 
-  Program:    violinPlot.sas
+    Program:    violinPlot.sas
 
     Purpose:  Generate violin plots in SAS
 
     Output:   violinPlot.(pdf png sas)
 
-    /---------------------------------------------------------------------------------------------\
-      Macro parameters
-    \---------------------------------------------------------------------------------------------/
+  /---------------------------------------------------------------------------------------------\
+    Parameters
+  \---------------------------------------------------------------------------------------------/
 
-            Parameter               Purpose
-            --------------------    --------------------------------------------------------------
-            data                    [REQUIRED]  input dataset
-            outcomeVar              [REQUIRED]  continuous outcome variable
+    [ REQUIRED ]
 
-            groupVar                [optional]  categorical grouping variable
-            panelVar                [optional]  categorical paneling variable
-            byVar                   [optional]  categorical BY variable
-            outPath                 [optional]  output directory
-            outName                 [optional]  output name
-            widthMultiplier         [optional]  kernel density width coefficient
-            jitterYN                [optional]  display jittered data points?
-            quartileYN              [optional]  display color-coded quartiles?
-            quartileSymbolsYN       [optional]  display quartiles as symbols?
-            meanYN                  [optional]  display means?
-            trendLineYN             [optional]  display a trend line?
-            trendStatistic          [optional]  trend line statistic
+        data                input dataset
+        outcomeVar          continuous outcome variable
 
-/-------------------------------------------------------------------------------------------------\
-  Program history:
-\-------------------------------------------------------------------------------------------------/
+    [ optional ]
+
+        groupVar            categorical grouping variable
+        panelVar            categorical paneling variable
+        outPath             output directory
+        outName             output name
+        widthMultiplier     kernel density width coefficient
+        jitterYN            display jittered data points?
+        quartileYN          display color-coded quartiles?
+        quartileSymbolsYN   display quartiles as symbols?
+        meanYN              display means?
+        trendLineYN         display a trend line?
+        trendStatistic      trend line statistic
+
+  /-------------------------------------------------------------------------------------------------\
+    Program history:
+  \-------------------------------------------------------------------------------------------------/
 
     Date        Programmer          Description
     ----------  ------------------  --------------------------------------------------------------
-    2016-02-02  Spencer Childress   Create
+    2016-02-02  Spencer Childress   Create.
+    2019-01-17  Spencer Childress   Avoid passing raw data to PROC SGPANEL when [ jitterYN ] = No to improve performance.
+                                    Set default of [ jitterYN ] to No.
+                                    Add argument checks.
+                                    Remove [ byVar ] parameter as the functionality was never developed.
 
 \------------------------------------------------------------------------------------------------*/
 
-%macro violinPlot
-    (data              = 
-    ,outcomeVar        = 
-    ,groupVar          = 
-    ,panelVar          = 
-    ,byVar             = 
-    ,outPath           = .
-    ,outName           = violinPlot
-    ,widthMultiplier   = 1
-    ,jitterYN          = Yes
-    ,quartileYN        = Yes
-    ,quartileSymbolsYN = No
-    ,meanYN            = Yes
-    ,trendLineYN       = Yes
-    ,trendStatistic    = Median
-    ) / minoperator;
+%macro violinPlot(
+    data              = ,
+    outcomeVar        = ,
+    groupVar          = ,
+    panelVar          = ,
+    outPath           = .,
+    outName           = violinPlot,
+    widthMultiplier   = 1,
+    quartileYN        = Yes,
+    meanYN            = Yes,
+    trendLineYN       = Yes,
+    jitterYN          = No,
+    quartileSymbolsYN = No,
+    trendStatistic    = Median
+) / minoperator;
 
-    %if &data            = %then %goto exit;
-    %if &outcomeVar      = %then %goto exit;
-    %if &widthMultiplier = %then %let  widthMuliplier = 1;
+    %put;
+    %put %nrstr(/-------------------------------------------------------------------------------------------------\);
+    %put %nrstr(  %violinPlot beginning execution.);
+    %put %nrstr(\-------------------------------------------------------------------------------------------------/);
+    %put;
+
+    /**-------------------------------------------------------------------------------------------\
+	  Argument checks
+    \-------------------------------------------------------------------------------------------**/
+
+            %macro argumentCheck(
+                parameterName,
+                values,
+                default
+            ) / minoperator;
+
+                %global argumentCheck;
+                %let argumentCheck = 1;
+
+                %if %nrbquote(&&&parameterName) ne %then %do;
+                    %let &parameterName = %upcase(%nrbquote(&&&parameterName));
+
+                    %if %nrbquote(&values) ne %then %do;
+                        %if not (%nrbquote(&&&parameterName) in &values) %then %do;
+                            %put %str(    --> [ &parameterName ] can only take values of [ &values ].);
+
+                            %if %nrbquote(&default) ne %then %do;
+                                %put %str(    -->     Defaulting to [ &default ].);
+                                %let &parameterName = &default;
+                            %end;
+                            %else %let argumentCheck = 0;
+                        %end;
+                    %end;
+                %end;
+                %else %if %nrbquote(&default) ne %then %do;
+                    %put %str(    --> [ &parameterName ] unspecified.  Defaulting to [ &default ].);
+                    %let &parameterName = &default;
+                %end;
+                %else %let argumentCheck = 0;
+
+            %mend  argumentCheck;
+
+        /* REQUIRED */
+
+            %*[ data ];
+            %if %nrbquote(&data) = %then %do;
+                %put %str(    --> [ data ] unspecified.  Execution terminating.);
+                %goto exit;
+            %end;
+
+            %*[ outcomeVar ];
+            %if %nrbquote(&outcomeVar) = %then %do;
+                %put %str(    --> [ outcomeVar ] unspecified.  Execution terminating.);
+                %goto exit;
+            %end;
+
+        /* optional */
+
+            %argumentCheck( outPath           ,                                 , .          );
+            %argumentCheck( outName           ,                                 , violinPlot );
+            %argumentCheck( widthMultiplier   ,                                 , 1          );
+            %argumentCheck( quartileYN        , YES NO                          , YES        );
+            %argumentCheck( meanYN            , YES NO                          , YES        );
+            %argumentCheck( trendLineYN       , YES NO                          , YES        );
+            %argumentCheck( jitterYN          , YES NO                          , NO         );
+            %argumentCheck( quartileSymbolsYN , YES NO                          , NO         );
+            %argumentCheck( trendStatistic    , MEAN MEDIAN QUARTILE1 QUARTILE3 , MEDIAN     );
+
+        /* dataset variables */
+
+            %macro variableExist(
+                data,
+                vars,
+                required,
+                message
+            ) / minoperator;
+
+                %local var;
+                %global variableExist;
+                %let variableExist = 1;
+
+                %if &required ne and %nrbquote(&&&vars) = %then %do;
+                    %if %nrbquote(&Message) =
+                        %then %put %str(    --> [ &vars ] unspecified.  Execution terminating.);
+                        %else %put %str(    --> &Message);
+                    %let variableExist = 0;
+                %end;
+                %else %if %nrbquote(&&&vars) ne %then %do;
+                    %let &vars = %upcase(%sysfunc(prxchange(%str(s/\s{2,}/ /), -1, %nrbquote(&&&vars))));
+                    %let dataID = %sysfunc(open(&data));
+
+                    %do i = 1 %to %sysfunc(countw(&&&vars));
+                        %let var = %scan(&&&vars, &i, %str( *));
+
+                        %if %sysfunc(prxmatch(%str(/^[_a-z][_a-z0-9]* *$/i), &var)) = 0 %then %do;
+                            %put %str(    --> The argument to [ vars ], [ &var ], contains an invalid character.  Execution terminating.);
+                            %let variableExist = 0;
+                        %end;
+                        %else %if %sysfunc(varnum(&dataID, &var)) = 0 %then %do;
+                            %put %str(    --> The dataset [ &data ] does not contain the variable [ &var ].  Execution terminating.);
+                            %let variableExist = 0;
+                        %end;
+                    %end;
+
+                    %let rc = %sysfunc(close(&dataID));
+                %end;
+
+            %mend  variableExist;
+
+            %variableExist( &data , outcomeVar , 1 ); %if &variableExist = 0 %then %goto exit;
+            %variableExist( &data , groupVar   ,   ); %if &variableExist = 0 %then %goto exit;
+            %variableExist( &data , panelVar   ,   ); %if &variableExist = 0 %then %goto exit;
 
     /*--------------------------------------------------------------------------------------------\
       Data manipulation
@@ -65,7 +178,7 @@
 
         data _inputData_;
             set &data (
-                keep  = &byVar &panelVar &groupVar &outcomeVar
+                keep  = &panelVar &groupVar &outcomeVar
                 where = (&outcomeVar gt .z));
 
             if "&groupVar" = '' then do;
@@ -78,7 +191,7 @@
             data = _inputData_;
             by &groupVar &outcomeVar;
         data inputData (drop = groupVarValues);
-            retain &byVar &panelVar &groupVar &outcomeVar;
+            retain &panelVar &groupVar &outcomeVar;
             set _inputData_
                 end = eof;
             by &groupVar;
@@ -100,8 +213,6 @@
                     call symputx('groupVarLabel', coalescec(vlabel(  &groupVar), vname(  &groupVar)));
                 %if &panelVar ne %then
                     call symputx('panelVarLabel', coalescec(vlabel(&panelVar), vname(&panelVar)));;
-                %if &byVar ne %then
-                    call symputx('byVarLabel', coalescec(vlabel(&byVar), vname(&byVar)));;
             end;
         run;
 
@@ -115,8 +226,6 @@
 
         %if &panelVar ne %then
             %put %str(NOTE- Panel by:         &panelVarLabel);
-        %if &byVar ne %then
-            %put %str(NOTE- Process by:       &byVarLabel);
 
     /*--------------------------------------------------------------------------------------------\
       Formats
@@ -142,10 +251,10 @@
             ods graphics off;
                 proc sort
                     data = inputData;
-                    by &byVar &panelVar &groupVar &outcomeVar;
+                    by &panelVar &groupVar &outcomeVar;
                 proc kde
                     data = inputData;
-                    by &byVar &panelVar &groupVar groupVar;
+                    by &panelVar &groupVar groupVar;
                     univar outcomeVar / noprint
                         out = KDE;
                 run;
@@ -158,7 +267,7 @@
 
             proc means noprint nway
                 data = inputData;
-                class  &byVar &panelVar &groupVar groupVar;
+                class  &panelVar &groupVar groupVar;
                 var    &outcomeVar;
                 output
                     out    = statistics
@@ -188,11 +297,9 @@
                          from    KDE a
                              inner join
                                  statistics b
-                             on %if &byVar    ne %then a.&byVar    = b.&byVar and;
-                                %if &panelVar ne %then a.&panelVar = b.&panelVar and;
+                             on %if &panelVar ne %then a.&panelVar = b.&panelVar and;
                                 a.&groupVar = b.&groupVar
-                order by %if &byVar    ne %then &byVar,;
-                         %if &panelVar ne %then &panelVar,;
+                order by %if &panelVar ne %then &panelVar,;
                                                 &groupVar,
                                                  yBand;
 
@@ -216,11 +323,9 @@
                          from    inputData a
                              inner join
                                  statistics b
-                             on %if &byVar    ne %then a.&byVar    = b.&byVar and;
-                                %if &panelVar ne %then a.&panelVar = b.&panelVar and;
+                             on %if &panelVar ne %then a.&panelVar = b.&panelVar and;
                                 a.&groupVar = b.&groupVar
-                order by %if &byVar    ne %then &byVar,;
-                         %if &panelVar ne %then &panelVar,;
+                order by %if &panelVar ne %then &panelVar,;
                                                 &groupVar,
                                                  &outcomeVar;
             quit;
@@ -231,14 +336,18 @@
 
             data fin;
                 set KDEstatistics (
-                        in = KDE)
+                        in = KDE
+                    )
                     statistics (
-                        in = stats)
+                        in = stats
+                    )
+                %if &jitterYN = YES %then
                     inputDataStatistics (
-                        in = data);
+                        in = data
+                    );;
 
                 groupVar_div_2 = groupVar/2;
-                if quartile gt .z and "&quartileYN" ne 'Yes' then quartile = ceil(quartile/100)*100;
+                if quartile gt .z and "&quartileYN" ne 'YES' then quartile = ceil(quartile/100)*100;
 
                 label
                     quartile1 = 'First Quartile'
@@ -338,7 +447,7 @@
                         proc sgpanel nocycleattrs noautolegend
                             data = fin;
                             format
-                                lowerBand upperBand groupVar_div_2 jitter groupVar.;
+                                lowerBand upperBand groupVar_div_2 %if &jitterYN = YES %then jitter; groupVar.;
                             panelby
                                 &panelVar / novarname
                                     rows = &rows
@@ -352,7 +461,7 @@
                                         pattern = solid
                                         color = black);
 
-                            %if &jitterYN = Yes %then %do;
+                            %if &jitterYN = YES %then %do;
                                 scatter
                                     x = jitter
                                     y = &outcomeVar /
@@ -362,7 +471,7 @@
                                             color = black);
                             %end;
 
-                            %if &quartileSymbolsYN = Yes %then %do;
+                            %if &quartileSymbolsYN = YES %then %do;
                                 scatter
                                     x = groupVar_div_2
                                     y = quartile1 /
@@ -389,7 +498,7 @@
                                             color = black);
                             %end;
 
-                            %if &meanYN = Yes %then %do;
+                            %if &meanYN = YES %then %do;
                                 scatter
                                     x = groupVar_div_2
                                     y = mean /
@@ -400,7 +509,7 @@
                                             color = yellow);
                             %end;
 
-                            %if &trendLineYN = Yes %then %do;
+                            %if &trendLineYN = YES %then %do;
                                 series
                                     x = groupVar_div_2
                                     y = &trendStatistic /
@@ -443,7 +552,7 @@
                                         pattern = solid
                                         color = black);
 
-                            %if &jitterYN = Yes %then %do;
+                            %if &jitterYN = YES %then %do;
                                 scatter
                                     x = jitter
                                     y = &outcomeVar /
@@ -453,7 +562,7 @@
                                             color = black);
                             %end;
 
-                            %if &quartileSymbolsYN = Yes %then %do;
+                            %if &quartileSymbolsYN = YES %then %do;
                                 scatter
                                     x = groupVar_div_2
                                     y = quartile1 /
@@ -480,7 +589,7 @@
                                             color = black);
                             %end;
 
-                            %if &meanYN = Yes %then %do;
+                            %if &meanYN = YES %then %do;
                                 scatter
                                     x = groupVar_div_2
                                     y = mean /
@@ -491,7 +600,7 @@
                                             color = yellow);
                             %end;
 
-                            %if &trendLineYN = Yes %then %do;
+                            %if &trendLineYN = YES %then %do;
                                 series
                                     x = groupVar_div_2
                                     y = &trendStatistic /
@@ -546,5 +655,11 @@
         ods results;
 
     %exit:
+
+    %put;
+    %put %nrstr(/-------------------------------------------------------------------------------------------------\);
+    %put %nrstr(  %violinPlot ending execution.);
+    %put %nrstr(\-------------------------------------------------------------------------------------------------/);
+    %put;
 
 %mend  violinPlot;
